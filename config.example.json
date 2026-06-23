@@ -1,0 +1,29 @@
+{
+  "url": "https://quota.wohnheim.uni-kl.de",
+  "interval_seconds": 300,
+  "daily_limit_gib": 20.0,
+  "max_plausible_usage_gib": 40.0,
+  "remaining_alert_gib": 2.0,
+  "delta_alert_gib": 3.0,
+  "notification_cooldown_seconds": 1800,
+  "state_file": "quota_state.json",
+  "language": "zh",
+  "language_selected": false,
+  "auto_start_monitor": false,
+  "verify_ssl": false,
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+  },
+  "telegram": {
+    "enabled": false,
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "windows_toast": {
+    "enabled": true
+  },
+  "parsing": {
+    "download_regex": "",
+    "upload_regex": ""
+  }
+}

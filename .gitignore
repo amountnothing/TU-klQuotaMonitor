@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+config.json
+quota_state.json
+last_quota_page_text.txt
+build/
+dist/
+*.spec
+
