@@ -1,5 +1,9 @@
 # TU-kl Quota Monitor
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+[Download the latest Windows release](https://github.com/amountnothing/TU-klQuotaMonitor/releases/latest)
+
 A small Windows app for monitoring traffic usage from
 `https://quota.wohnheim.uni-kl.de`.
 
@@ -41,4 +45,3 @@ Run tests with:
 ```powershell
 python -m unittest test_quota_monitor.py
 ```
-
