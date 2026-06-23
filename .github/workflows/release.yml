@@ -13,11 +13,8 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -38,8 +35,82 @@ jobs:
           --hidden-import PIL.ImageDraw
           quota_monitor_gui.py
 
+      - name: Smoke test Windows executable
+        run: .\dist\WohnheimQuotaMonitor.exe --smoke-test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/WohnheimQuotaMonitor.exe
+
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            suffix: Apple-Silicon
+          - runner: macos-15-intel
+            suffix: Intel
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyinstaller -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest test_quota_monitor.py
+
+      - name: Build macOS application
+        run: >-
+          pyinstaller --windowed --clean
+          --name WohnheimQuotaMonitor
+          --hidden-import pystray
+          --hidden-import PIL
+          --hidden-import PIL.Image
+          --hidden-import PIL.ImageDraw
+          --hidden-import AppKit
+          --hidden-import Foundation
+          quota_monitor_gui.py
+
+      - name: Ad-hoc sign and verify application
+        run: |
+          codesign --force --deep --sign - dist/WohnheimQuotaMonitor.app
+          codesign --verify --deep --strict dist/WohnheimQuotaMonitor.app
+
+      - name: Smoke test macOS executable
+        run: dist/WohnheimQuotaMonitor.app/Contents/MacOS/WohnheimQuotaMonitor --smoke-test
+
+      - name: Package macOS application
+        run: >-
+          ditto -c -k --sequesterRsrc --keepParent
+          dist/WohnheimQuotaMonitor.app
+          WohnheimQuotaMonitor-macOS-${{ matrix.suffix }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.suffix }}
+          path: WohnheimQuotaMonitor-macOS-${{ matrix.suffix }}.zip
+
+  release:
+    needs:
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/WohnheimQuotaMonitor.exe
+          files: release-assets/*
           generate_release_notes: true

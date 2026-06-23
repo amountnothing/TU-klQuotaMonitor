@@ -14,6 +14,7 @@ import time
 import tkinter as tk
 import urllib.error
 import locale
+import plistlib
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -33,6 +34,7 @@ except Exception:
 APP_TITLE = "Wohnheim Quota Monitor"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE_NAME = "WohnheimQuotaMonitor"
+MACOS_LAUNCH_AGENT = "com.amountnothing.tuklquotamonitor.plist"
 
 LANGUAGE_OPTIONS = {
     "简体中文": "zh",
@@ -587,6 +589,9 @@ class QuotaMonitorApp:
             messagebox.showinfo(APP_TITLE, self.t("config_saved"))
 
     def apply_startup_setting(self) -> None:
+        if sys.platform == "darwin":
+            self.apply_macos_startup_setting()
+            return
         if sys.platform != "win32":
             return
         try:
@@ -611,6 +616,8 @@ class QuotaMonitorApp:
             messagebox.showerror(APP_TITLE, message)
 
     def is_startup_enabled(self) -> bool:
+        if sys.platform == "darwin":
+            return self.is_macos_startup_enabled()
         if sys.platform != "win32":
             return False
         try:
@@ -628,6 +635,44 @@ class QuotaMonitorApp:
         if getattr(sys, "frozen", False):
             return f'"{sys.executable}" --startup'
         return f'"{sys.executable}" "{Path(__file__).resolve()}" --startup'
+
+    def macos_launch_agent_path(self) -> Path:
+        return Path.home() / "Library" / "LaunchAgents" / MACOS_LAUNCH_AGENT
+
+    def macos_startup_arguments(self) -> list[str]:
+        if getattr(sys, "frozen", False):
+            return [str(Path(sys.executable).resolve()), "--startup"]
+        return [str(Path(sys.executable).resolve()), str(Path(__file__).resolve()), "--startup"]
+
+    def apply_macos_startup_setting(self) -> None:
+        try:
+            launch_agent = self.macos_launch_agent_path()
+            if self.startup_enabled_var.get():
+                launch_agent.parent.mkdir(parents=True, exist_ok=True)
+                payload = {
+                    "Label": "com.amountnothing.tuklquotamonitor",
+                    "ProgramArguments": self.macos_startup_arguments(),
+                    "RunAtLoad": True,
+                }
+                with launch_agent.open("wb") as file:
+                    plistlib.dump(payload, file)
+            elif launch_agent.exists():
+                launch_agent.unlink()
+        except Exception as exc:
+            message = self.t("startup_failed").format(error=exc)
+            self._log(message)
+            messagebox.showerror(APP_TITLE, message)
+
+    def is_macos_startup_enabled(self) -> bool:
+        launch_agent = self.macos_launch_agent_path()
+        if not launch_agent.exists():
+            return False
+        try:
+            with launch_agent.open("rb") as file:
+                payload = plistlib.load(file)
+            return payload.get("ProgramArguments") == self.macos_startup_arguments()
+        except Exception:
+            return False
 
     def test_telegram(self) -> None:
         self.save_config(show_message=False)
@@ -669,7 +714,10 @@ class QuotaMonitorApp:
             return
         if self.tray_icon is None:
             self.tray_icon = self._create_tray_icon()
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+            if sys.platform == "darwin":
+                self.tray_icon.run_detached()
+            else:
+                threading.Thread(target=self.tray_icon.run, daemon=True).start()
         self.is_hidden_to_tray = True
         self.root.withdraw()
         self._log(self.t("tray_hidden"))
@@ -718,6 +766,8 @@ class QuotaMonitorApp:
 
 
 def main() -> None:
+    if "--smoke-test" in sys.argv:
+        return
     root = tk.Tk()
     try:
         root.call("tk", "scaling", 1.2)

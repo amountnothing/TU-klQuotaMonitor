@@ -23,6 +23,7 @@ import json
 import os
 import re
 import ssl
+import subprocess
 import sys
 import time
 import urllib.error
@@ -122,6 +123,10 @@ def text_for(config: dict[str, Any], key: str) -> str:
 def app_dir() -> Path:
     """返回脚本或 exe 所在目录，用于保存同目录状态文件。"""
     if getattr(sys, "frozen", False):
+        if sys.platform == "darwin":
+            data_dir = Path.home() / "Library" / "Application Support" / "TU-klQuotaMonitor"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return data_dir
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
 
@@ -413,9 +418,20 @@ def build_alerts(
 
 def notify_windows(title: str, message: str) -> None:
     """
-    Windows 通知优先使用可选库 winotify。
-    未安装时退回为终端输出和蜂鸣，不影响 Telegram 通知。
+    Use the native notification mechanism for Windows or macOS.
     """
+    if sys.platform == "darwin":
+        safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
+        safe_message = message.replace("\\", "\\\\").replace('"', '\\"')
+        script = f'display notification "{safe_message}" with title "{safe_title}"'
+        subprocess.run(
+            ["osascript", "-e", script],
+            check=False,
+            capture_output=True,
+            timeout=10,
+        )
+        return
+
     try:
         from winotify import Notification  # type: ignore
 

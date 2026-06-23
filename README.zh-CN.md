@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-[点击下载最新版 Windows 程序](https://github.com/amountnothing/TU-klQuotaMonitor/releases/latest)
+下载：[Windows](https://github.com/amountnothing/TU-klQuotaMonitor/releases/latest/download/WohnheimQuotaMonitor.exe) | [macOS Apple Silicon](https://github.com/amountnothing/TU-klQuotaMonitor/releases/latest/download/WohnheimQuotaMonitor-macOS-Apple-Silicon.zip) | [macOS Intel](https://github.com/amountnothing/TU-klQuotaMonitor/releases/latest/download/WohnheimQuotaMonitor-macOS-Intel.zip)
 
 这是一个用于监控 `https://quota.wohnheim.uni-kl.de` 流量额度的 Windows 小工具。
 
@@ -15,7 +15,7 @@
 - 支持简体中文、English 和 Deutsch
 - 支持最小化到系统托盘
 - 支持开机自启并自动开始检测
-- 打包版 exe 不需要安装 Python
+- Windows 和 macOS 打包版都不需要安装 Python
 
 ## 快速开始
 
@@ -25,6 +25,8 @@
 4. 如需 Telegram 通知，填写 Bot Token 和 Chat ID。
 
 配额网站只能从允许访问的大学或宿舍网络 IP 范围打开。
+
+macOS 用户解压后，首次启动请右键点击应用并选择 **打开**。应用经过临时签名和 GitHub 云端启动测试，但没有使用 Apple Developer 证书公证。
 
 ## 默认提醒条件
 
@@ -43,4 +45,3 @@ python quota_monitor_gui.py
 ```powershell
 python -m unittest test_quota_monitor.py
 ```
-
