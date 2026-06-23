@@ -369,8 +369,8 @@ def build_alerts(
     alerts: list[str] = []
 
     remaining = {
-        "download": limit - snapshot.download_gib,
-        "upload": limit - snapshot.upload_gib,
+        "download": max(0.0, limit - snapshot.download_gib),
+        "upload": max(0.0, limit - snapshot.upload_gib),
     }
 
     for direction, left_gib in remaining.items():

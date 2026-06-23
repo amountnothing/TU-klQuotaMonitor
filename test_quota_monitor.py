@@ -46,6 +46,15 @@ class QuotaMonitorTests(unittest.TestCase):
         with self.assertRaises(monitor.StaleQuotaDataError):
             monitor.build_alerts(snapshot, None, self.config, {})
 
+    def test_remaining_quota_is_never_negative(self) -> None:
+        snapshot = monitor.QuotaSnapshot(25.0, 21.0, 0)
+
+        alerts = monitor.build_alerts(snapshot, None, self.config, {})
+
+        self.assertEqual(len(alerts), 2)
+        self.assertTrue(all("0.00 GiB" in alert for alert in alerts))
+        self.assertTrue(all("-" not in alert for alert in alerts))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -558,8 +558,8 @@ class QuotaMonitorApp:
 
     def _show_snapshot(self, snapshot: monitor.QuotaSnapshot, alerts: list[str]) -> None:
         limit = float(self.config.get("daily_limit_gib", 20.0))
-        download_left = limit - snapshot.download_gib
-        upload_left = limit - snapshot.upload_gib
+        download_left = max(0.0, limit - snapshot.download_gib)
+        upload_left = max(0.0, limit - snapshot.upload_gib)
         checked_at = datetime.fromtimestamp(snapshot.timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
         self.last_check_var.set(checked_at)
