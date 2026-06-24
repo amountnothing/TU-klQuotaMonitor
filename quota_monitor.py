@@ -476,8 +476,53 @@ def notify_telegram(title: str, message: str, telegram_config: dict[str, Any]) -
         }
     ).encode("utf-8")
     request = urllib.request.Request(url, data=data, method="POST")
-    with urllib.request.urlopen(request, timeout=20) as response:
-        response.read()
+    try:
+        try:
+            import certifi
+
+            context = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            context = ssl.create_default_context()
+        with urllib.request.urlopen(request, timeout=20, context=context) as response:
+            response.read()
+    except urllib.error.URLError:
+        if sys.platform != "darwin":
+            raise
+        notify_telegram_with_macos_curl(url, title, message, chat_id)
+
+
+def notify_telegram_with_macos_curl(
+    url: str,
+    title: str,
+    message: str,
+    chat_id: str,
+) -> None:
+    """Use macOS curl so Telegram requests honor Keychain trust and proxy settings."""
+    result = subprocess.run(
+        [
+            "/usr/bin/curl",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            "20",
+            "--request",
+            "POST",
+            "--data-urlencode",
+            f"chat_id={chat_id}",
+            "--data-urlencode",
+            f"text={title}\n{message}",
+            "--data-urlencode",
+            "disable_web_page_preview=true",
+            url,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=25,
+    )
+    if result.returncode != 0:
+        error = result.stderr.strip() or f"curl exited with code {result.returncode}"
+        raise RuntimeError(f"Telegram request failed: {error}")
 
 
 def send_notifications(alerts: list[str], config: dict[str, Any]) -> None:

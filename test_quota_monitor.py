@@ -1,6 +1,8 @@
 import copy
 import unittest
+import urllib.error
 from datetime import date, timedelta
+from unittest import mock
 
 import quota_monitor as monitor
 
@@ -54,6 +56,27 @@ class QuotaMonitorTests(unittest.TestCase):
         self.assertEqual(len(alerts), 2)
         self.assertTrue(all("0.00 GiB" in alert for alert in alerts))
         self.assertTrue(all("-" not in alert for alert in alerts))
+
+    def test_macos_telegram_falls_back_to_system_curl(self) -> None:
+        telegram = {
+            "bot_token": "test-token",
+            "chat_id": "123456",
+        }
+        certificate_error = urllib.error.URLError("certificate verify failed")
+
+        with (
+            mock.patch.object(monitor.sys, "platform", "darwin"),
+            mock.patch.object(monitor.urllib.request, "urlopen", side_effect=certificate_error),
+            mock.patch.object(monitor, "notify_telegram_with_macos_curl") as curl_fallback,
+        ):
+            monitor.notify_telegram("Title", "Message", telegram)
+
+        curl_fallback.assert_called_once_with(
+            "https://api.telegram.org/bottest-token/sendMessage",
+            "Title",
+            "Message",
+            "123456",
+        )
 
 
 if __name__ == "__main__":
