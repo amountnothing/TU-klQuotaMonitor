@@ -43,6 +43,8 @@ DEFAULT_CONFIG = {
     "max_plausible_usage_gib": 40.0,
     "remaining_alert_gib": 2.0,
     "delta_alert_gib": 3.0,
+    "server_refresh_alert_enabled": False,
+    "increment_alert_gib": 0.0,
     "notification_cooldown_seconds": 1800,
     "state_file": "quota_state.json",
     "language": "zh",
@@ -97,6 +99,8 @@ I18N = {
         "notify_title": "Wohnheim quota alert",
         "remaining_alert": "{direction} has only {left:.2f} GiB left (used {used:.2f} / {limit:.2f} GiB)",
         "delta_alert": "{direction} increased by {delta:.2f} GiB in {minutes}, above the {threshold:.2f} GiB threshold",
+        "server_refresh_alert": "Server data refreshed: Download +{download_delta:.2f} GiB, Upload +{upload_delta:.2f} GiB (server time {server_time})",
+        "increment_alert": "{direction} increased by {delta:.2f} GiB since the last alert, reaching the every {threshold:.2f} GiB alert setting",
         "download": "Download",
         "upload": "Upload",
         "stale_period": "The page still shows quota period {period}; waiting for today's data ({today}).",
@@ -114,6 +118,15 @@ I18N = {
     },
 }
 
+
+I18N["zh"].update({
+    "server_refresh_alert": "网页数据已刷新：Download +{download_delta:.2f} GiB，Upload +{upload_delta:.2f} GiB（网页时间 {server_time}）",
+    "increment_alert": "{direction} 自上次提醒后增加 {delta:.2f} GiB，已达到每 {threshold:.2f} GiB 提醒一次的设置",
+})
+I18N["de"].update({
+    "server_refresh_alert": "Serverdaten aktualisiert: Download +{download_delta:.2f} GiB, Upload +{upload_delta:.2f} GiB (Serverzeit {server_time})",
+    "increment_alert": "{direction}: +{delta:.2f} GiB seit der letzten Warnung; Einstellung: alle {threshold:.2f} GiB warnen",
+})
 
 def text_for(config: dict[str, Any], key: str) -> str:
     language = str(config.get("language", "zh"))
@@ -154,6 +167,7 @@ class QuotaSnapshot:
     timestamp: float
     period_start: str | None = None
     period_end: str | None = None
+    server_updated_at: str | None = None
 
 
 class StaleQuotaDataError(ValueError):
@@ -277,6 +291,26 @@ def parse_quota_period(text: str) -> tuple[str | None, str | None]:
         return None, None
 
 
+def parse_server_updated_at(text: str) -> str | None:
+    """Extract the quota page's own data timestamp when it is available."""
+    match = re.search(
+        r"(?:Stand\s+der\s+Datenbank|Database\s+(?:status|updated))[^0-9]{0,40}"
+        r"(\d{1,2}\.\d{1,2}\.\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    raw_time = match.group(2)
+    if raw_time.count(":") == 1:
+        raw_time = f"{raw_time}:00"
+    try:
+        parsed = datetime.strptime(f"{match.group(1)} {raw_time}", "%d.%m.%Y %H:%M:%S")
+        return parsed.isoformat(sep=" ")
+    except ValueError:
+        return None
+
+
 def validate_snapshot(snapshot: QuotaSnapshot, config: dict[str, Any]) -> None:
     """Ignore stale day-rollover data and impossible parser results."""
     today = date.today().isoformat()
@@ -305,6 +339,7 @@ def parse_quota(html: str, config: dict[str, Any]) -> QuotaSnapshot:
     text = html_to_text(html)
     parsing = config.get("parsing", {})
     period_start, period_end = parse_quota_period(text)
+    server_updated_at = parse_server_updated_at(text)
 
     download = parse_with_custom_regex(text, parsing.get("download_regex", ""))
     upload = parse_with_custom_regex(text, parsing.get("upload_regex", ""))
@@ -334,6 +369,7 @@ def parse_quota(html: str, config: dict[str, Any]) -> QuotaSnapshot:
         timestamp=time.time(),
         period_start=period_start,
         period_end=period_end,
+        server_updated_at=server_updated_at,
     )
     validate_snapshot(snapshot, config)
     return snapshot
@@ -370,6 +406,7 @@ def build_alerts(
     limit = float(config["daily_limit_gib"])
     remaining_threshold = float(config["remaining_alert_gib"])
     delta_threshold = float(config["delta_alert_gib"])
+    increment_threshold = float(config.get("increment_alert_gib", 0.0))
     cooldown = int(config["notification_cooldown_seconds"])
     alerts: list[str] = []
 
@@ -399,6 +436,27 @@ def build_alerts(
             "download": snapshot.download_gib - float(previous.get("download_gib", snapshot.download_gib)),
             "upload": snapshot.upload_gib - float(previous.get("upload_gib", snapshot.upload_gib)),
         }
+        positive_deltas = {
+            "download": max(0.0, deltas["download"]),
+            "upload": max(0.0, deltas["upload"]),
+        }
+
+        if (
+            config.get("server_refresh_alert_enabled", False)
+            and snapshot.server_updated_at
+            and previous.get("server_updated_at")
+            and snapshot.server_updated_at != previous.get("server_updated_at")
+            and any(value > 0 for value in positive_deltas.values())
+        ):
+            key = f"{today_key()}:server-refresh:{snapshot.server_updated_at}"
+            if should_notify(state, key, 0):
+                alerts.append(
+                    text_for(config, "server_refresh_alert").format(
+                        download_delta=positive_deltas["download"],
+                        upload_delta=positive_deltas["upload"],
+                        server_time=snapshot.server_updated_at,
+                    )
+                )
 
         for direction, delta_gib in deltas.items():
             if delta_gib >= delta_threshold:
@@ -412,6 +470,29 @@ def build_alerts(
                             threshold=delta_threshold,
                         )
                     )
+
+    if increment_threshold > 0:
+        baseline = state.setdefault("increment_alert_baseline", {})
+        if baseline.get("day") != today_key():
+            baseline.clear()
+            baseline["day"] = today_key()
+            baseline["download_gib"] = snapshot.download_gib
+            baseline["upload_gib"] = snapshot.upload_gib
+        else:
+            for direction in ("download", "upload"):
+                field = f"{direction}_gib"
+                current_value = getattr(snapshot, field)
+                baseline_value = float(baseline.get(field, current_value))
+                delta_since_alert = current_value - baseline_value
+                if delta_since_alert >= increment_threshold:
+                    alerts.append(
+                        text_for(config, "increment_alert").format(
+                            direction=text_for(config, direction),
+                            delta=delta_since_alert,
+                            threshold=increment_threshold,
+                        )
+                    )
+                    baseline[field] = current_value
 
     return alerts
 
@@ -558,6 +639,7 @@ def run_once(config: dict[str, Any], state_path: Path) -> None:
         "timestamp": snapshot.timestamp,
         "download_gib": snapshot.download_gib,
         "upload_gib": snapshot.upload_gib,
+        "server_updated_at": snapshot.server_updated_at,
     }
     save_json(state_path, state)
 

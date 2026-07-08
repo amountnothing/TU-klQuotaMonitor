@@ -1,0 +1,12 @@
+﻿services:
+  quota-monitor:
+    build: .
+    image: tu-klquota-monitor:latest
+    container_name: tu-klquota-monitor
+    restart: unless-stopped
+    volumes:
+      - ./config.docker.example.json:/config/config.json:ro
+      - quota-monitor-data:/data
+
+volumes:
+  quota-monitor-data:

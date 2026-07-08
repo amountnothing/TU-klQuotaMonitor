@@ -6,7 +6,7 @@
   "remaining_alert_gib": 2.0,
   "delta_alert_gib": 3.0,
   "notification_cooldown_seconds": 1800,
-  "state_file": "quota_state.json",
+  "state_file": "/data/quota_state.json",
   "language": "zh",
   "language_selected": false,
   "auto_start_monitor": false,
@@ -20,7 +20,7 @@
     "chat_id": ""
   },
   "windows_toast": {
-    "enabled": true
+    "enabled": false
   },
   "parsing": {
     "download_regex": "",

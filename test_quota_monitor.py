@@ -78,6 +78,52 @@ class QuotaMonitorTests(unittest.TestCase):
             "123456",
         )
 
+    def test_server_updated_at_is_parsed(self) -> None:
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+        html = (
+            f"Quotierungszeitraum: {today:%d.%m.%Y} - {tomorrow:%d.%m.%Y} "
+            f"Stand der Datenbank: {today:%d.%m.%Y} 00:50:00 "
+            "Download: 1 GiB 20 GiB Upload: 2 GiB 20 GiB"
+        )
+
+        snapshot = monitor.parse_quota(html, self.config)
+
+        self.assertEqual(snapshot.server_updated_at, f"{today:%Y-%m-%d} 00:50:00")
+
+    def test_server_refresh_alert_reports_positive_delta(self) -> None:
+        self.config["server_refresh_alert_enabled"] = True
+        previous = {
+            "day": monitor.today_key(),
+            "timestamp": 0,
+            "download_gib": 1.0,
+            "upload_gib": 1.0,
+            "server_updated_at": "2026-06-26 00:50:00",
+        }
+        snapshot = monitor.QuotaSnapshot(1.5, 1.1, 300, server_updated_at="2026-06-26 00:55:00")
+
+        alerts = monitor.build_alerts(snapshot, previous, self.config, {})
+
+        self.assertTrue(any("+0.50 GiB" in alert and "+0.10 GiB" in alert for alert in alerts))
+
+    def test_increment_alert_uses_last_alert_baseline(self) -> None:
+        self.config["increment_alert_gib"] = 1.0
+        state = {
+            "increment_alert_baseline": {
+                "day": monitor.today_key(),
+                "download_gib": 0.0,
+                "upload_gib": 0.0,
+            }
+        }
+        snapshot = monitor.QuotaSnapshot(1.25, 0.5, 300)
+
+        alerts = monitor.build_alerts(snapshot, None, self.config, state)
+
+        self.assertEqual(len(alerts), 1)
+        self.assertIn("1.25 GiB", alerts[0])
+        self.assertEqual(state["increment_alert_baseline"]["download_gib"], 1.25)
+        self.assertEqual(state["increment_alert_baseline"]["upload_gib"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

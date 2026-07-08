@@ -180,6 +180,28 @@ UI_TEXT = {
 }
 
 
+UI_TEXT["zh"].update({
+    "alerts": "提醒设置",
+    "server_refresh_alert": "网页数据刷新后通知本次增加量",
+    "remaining_alert_gib": "剩余 <= GiB",
+    "delta_alert_gib": "单次增加 >= GiB",
+    "increment_alert_gib": "每增加 GiB 通知",
+})
+UI_TEXT["en"].update({
+    "alerts": "Alert settings",
+    "server_refresh_alert": "Notify increase after server data refresh",
+    "remaining_alert_gib": "Remaining <= GiB",
+    "delta_alert_gib": "Single increase >= GiB",
+    "increment_alert_gib": "Notify every GiB increase",
+})
+UI_TEXT["de"].update({
+    "alerts": "Warn-Einstellungen",
+    "server_refresh_alert": "Nach Serverdaten-Update Zuwachs melden",
+    "remaining_alert_gib": "Rest <= GiB",
+    "delta_alert_gib": "Einmaliger Zuwachs >= GiB",
+    "increment_alert_gib": "Warnen alle GiB Zuwachs",
+})
+
 def detect_system_language() -> str:
     try:
         language = (locale.getlocale()[0] or "").lower()
@@ -201,8 +223,8 @@ class QuotaMonitorApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(APP_TITLE)
-        self.root.geometry("540x500")
-        self.root.minsize(520, 460)
+        self.root.geometry("620x650")
+        self.root.minsize(580, 620)
 
         self.base_dir = monitor.app_dir()
         self.config_path = self.base_dir / "config.json"
@@ -238,6 +260,18 @@ class QuotaMonitorApp:
         self.remaining_var = tk.StringVar(value="-")
         self.next_check_var = tk.StringVar(value="-")
         self.startup_enabled_var = tk.BooleanVar(value=self.is_startup_enabled())
+        self.server_refresh_alert_var = tk.BooleanVar(
+            value=bool(self.config.get("server_refresh_alert_enabled", False))
+        )
+        self.remaining_alert_var = tk.StringVar(
+            value=str(self.config.get("remaining_alert_gib", 2.0))
+        )
+        self.delta_alert_var = tk.StringVar(
+            value=str(self.config.get("delta_alert_gib", 3.0))
+        )
+        self.increment_alert_var = tk.StringVar(
+            value=str(self.config.get("increment_alert_gib", 0.0))
+        )
         self.metric_labels: dict[str, ttk.Label] = {}
         self.widgets: dict[str, Any] = {}
 
@@ -342,9 +376,41 @@ class QuotaMonitorApp:
         self.widgets["test_button"] = ttk.Button(buttons, command=self.test_telegram)
         self.widgets["test_button"].grid(row=0, column=1)
 
+        alerts = ttk.LabelFrame(main)
+        self.widgets["alerts_frame"] = alerts
+        alerts.grid(row=4, column=0, sticky="ew", pady=(14, 0))
+        alerts.columnconfigure(1, weight=1)
+        alerts.columnconfigure(3, weight=1)
+
+        server_refresh = ttk.Checkbutton(
+            alerts,
+            variable=self.server_refresh_alert_var,
+            command=self.save_config,
+        )
+        self.widgets["server_refresh_alert"] = server_refresh
+        server_refresh.grid(row=0, column=0, columnspan=4, sticky="w", padx=10, pady=(10, 6))
+
+        self.widgets["remaining_alert_label"] = ttk.Label(alerts)
+        self.widgets["remaining_alert_label"].grid(row=1, column=0, sticky="w", padx=10, pady=6)
+        ttk.Entry(alerts, textvariable=self.remaining_alert_var, width=10).grid(
+            row=1, column=1, sticky="w", padx=10, pady=6
+        )
+
+        self.widgets["delta_alert_label"] = ttk.Label(alerts)
+        self.widgets["delta_alert_label"].grid(row=1, column=2, sticky="w", padx=10, pady=6)
+        ttk.Entry(alerts, textvariable=self.delta_alert_var, width=10).grid(
+            row=1, column=3, sticky="w", padx=10, pady=6
+        )
+
+        self.widgets["increment_alert_label"] = ttk.Label(alerts)
+        self.widgets["increment_alert_label"].grid(row=2, column=0, sticky="w", padx=10, pady=(6, 10))
+        ttk.Entry(alerts, textvariable=self.increment_alert_var, width=10).grid(
+            row=2, column=1, sticky="w", padx=10, pady=(6, 10)
+        )
+
         startup = ttk.LabelFrame(main)
         self.widgets["startup_frame"] = startup
-        startup.grid(row=4, column=0, sticky="ew", pady=(14, 0))
+        startup.grid(row=5, column=0, sticky="ew", pady=(14, 0))
         startup.columnconfigure(0, weight=1)
 
         startup_check = ttk.Checkbutton(
@@ -357,10 +423,10 @@ class QuotaMonitorApp:
 
         log_frame = ttk.LabelFrame(main)
         self.widgets["log_frame"] = log_frame
-        log_frame.grid(row=5, column=0, sticky="nsew", pady=(14, 0))
+        log_frame.grid(row=6, column=0, sticky="nsew", pady=(14, 0))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
-        main.rowconfigure(5, weight=1)
+        main.rowconfigure(6, weight=1)
 
         self.log_text = tk.Text(log_frame, height=6, wrap="word", state="disabled")
         self.log_text.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
@@ -370,7 +436,7 @@ class QuotaMonitorApp:
             foreground="#666666",
         )
         self.widgets["hint"] = hint
-        hint.grid(row=6, column=0, sticky="w", pady=(8, 0))
+        hint.grid(row=7, column=0, sticky="w", pady=(8, 0))
 
     def _metric(
         self,
@@ -464,6 +530,11 @@ class QuotaMonitorApp:
         self.widgets["telegram_enabled"].configure(text=self.t("telegram_enabled"))
         self.widgets["save_button"].configure(text=self.t("save"))
         self.widgets["test_button"].configure(text=self.t("test_telegram"))
+        self.widgets["alerts_frame"].configure(text=self.t("alerts"))
+        self.widgets["server_refresh_alert"].configure(text=self.t("server_refresh_alert"))
+        self.widgets["remaining_alert_label"].configure(text=self.t("remaining_alert_gib"))
+        self.widgets["delta_alert_label"].configure(text=self.t("delta_alert_gib"))
+        self.widgets["increment_alert_label"].configure(text=self.t("increment_alert_gib"))
         self.widgets["startup_frame"].configure(text=self.t("background"))
         self.widgets["startup_check"].configure(text=self.t("startup"))
         self.widgets["log_frame"].configure(text=self.t("log"))
@@ -539,6 +610,7 @@ class QuotaMonitorApp:
             "timestamp": snapshot.timestamp,
             "download_gib": snapshot.download_gib,
             "upload_gib": snapshot.upload_gib,
+            "server_updated_at": snapshot.server_updated_at,
         }
         monitor.save_json(self.state_path, state)
         return {"snapshot": snapshot, "alerts": alerts}
@@ -580,6 +652,16 @@ class QuotaMonitorApp:
         telegram["chat_id"] = self.chat_id_var.get().strip()
         self.config["language"] = self.language_code()
         self.config["language_selected"] = True
+        self.config["remaining_alert_gib"] = self._float_setting(
+            self.remaining_alert_var, self.config.get("remaining_alert_gib", 2.0)
+        )
+        self.config["delta_alert_gib"] = self._float_setting(
+            self.delta_alert_var, self.config.get("delta_alert_gib", 3.0)
+        )
+        self.config["increment_alert_gib"] = self._float_setting(
+            self.increment_alert_var, self.config.get("increment_alert_gib", 0.0)
+        )
+        self.config["server_refresh_alert_enabled"] = bool(self.server_refresh_alert_var.get())
         self.config["verify_ssl"] = bool(self.config.get("verify_ssl", False))
         self.config["auto_start_monitor"] = bool(self.startup_enabled_var.get())
         self.apply_startup_setting()
@@ -587,6 +669,14 @@ class QuotaMonitorApp:
         self._log(self.t("config_saved"))
         if show_message:
             messagebox.showinfo(APP_TITLE, self.t("config_saved"))
+
+    def _float_setting(self, variable: tk.StringVar, fallback: Any) -> float:
+        try:
+            return max(0.0, float(variable.get().strip().replace(",", ".")))
+        except ValueError:
+            value = max(0.0, float(fallback))
+            variable.set(str(value))
+            return value
 
     def apply_startup_setting(self) -> None:
         if sys.platform == "darwin":
