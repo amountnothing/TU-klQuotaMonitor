@@ -42,7 +42,7 @@ macOS 用户解压后，首次启动请右键点击应用并选择 **打开**。
 
 ## Docker 使用
 
-复制并编辑 `config.docker.example.json`，按需填写 Telegram 信息，然后运行：
+复制 `config.docker.example.json` 为 `config.json`，按需填写 Telegram 信息，然后运行：
 
 ```bash
 docker compose up -d --build
@@ -62,3 +62,4 @@ python quota_monitor_gui.py
 ```powershell
 python -m unittest test_quota_monitor.py
 ```
+

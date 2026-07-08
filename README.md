@@ -39,7 +39,7 @@ On macOS, unzip the app and use **right-click > Open** on first launch. The app 
 
 ## Docker
 
-Copy `config.docker.example.json`, edit Telegram settings if needed, then run:
+Copy `config.docker.example.json` to `config.json`, edit Telegram settings if needed, then run:
 
 ```bash
 docker compose up -d --build
@@ -59,3 +59,4 @@ Run tests with:
 ```powershell
 python -m unittest test_quota_monitor.py
 ```
+
