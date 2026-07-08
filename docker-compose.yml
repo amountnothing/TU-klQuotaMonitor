@@ -3,9 +3,13 @@
     build: .
     image: tu-klquota-monitor:latest
     container_name: tu-klquota-monitor
+    command: ["python", "quota_monitor_web.py", "--config", "/config/config.json", "--host", "0.0.0.0", "--port", "8080"]
     restart: unless-stopped
+    ports:
+      - "18088:8080"
     volumes:
-      - ./config.json:/config/config.json:ro
+      - ./config.json:/config/config.json
+      - ./quota_monitor_web.py:/app/quota_monitor_web.py:ro
       - quota-monitor-data:/data
 
 volumes:
