@@ -618,7 +618,10 @@ def send_notifications(alerts: list[str], config: dict[str, Any]) -> None:
 
     telegram_config = config.get("telegram", {})
     if telegram_config.get("enabled", False):
-        notify_telegram(title, message, telegram_config)
+        try:
+            notify_telegram(title, message, telegram_config)
+        except Exception as exc:
+            print(f"[TELEGRAM ERROR] {exc}", file=sys.stderr)
 
 
 def run_once(config: dict[str, Any], state_path: Path) -> None:

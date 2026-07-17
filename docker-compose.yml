@@ -9,6 +9,7 @@
       - "18088:8080"
     volumes:
       - ./config.json:/config/config.json
+      - ./quota_monitor.py:/app/quota_monitor.py:ro
       - ./quota_monitor_web.py:/app/quota_monitor_web.py:ro
       - quota-monitor-data:/data
 

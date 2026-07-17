@@ -78,6 +78,17 @@ class QuotaMonitorTests(unittest.TestCase):
             "123456",
         )
 
+    def test_telegram_failure_does_not_abort_notifications(self) -> None:
+        self.config["telegram"] = {
+            "enabled": True,
+            "bot_token": "bad-token",
+            "chat_id": "123456",
+        }
+        self.config["windows_toast"]["enabled"] = False
+
+        with mock.patch.object(monitor, "notify_telegram", side_effect=RuntimeError("bad token")):
+            monitor.send_notifications(["alert"], self.config)
+
     def test_server_updated_at_is_parsed(self) -> None:
         today = date.today()
         tomorrow = today + timedelta(days=1)
